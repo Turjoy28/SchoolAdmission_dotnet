@@ -560,6 +560,170 @@ public class SeatService
     }
 
     // =====================================================
+    // ADMIN OPERATIONS
+    // =====================================================
+
+    public async Task<List<AdminHoldItemResponse>> GetAdminHoldsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        var holds = await (
+            from h in _db.Holds.AsNoTracking()
+            join c in _db.Classes.AsNoTracking() on h.ClassId equals c.Id
+            orderby h.CreatedAt descending
+            select new
+            {
+                h.Id,
+                h.ClassId,
+                ClassName = c.Name,
+                h.StudentId,
+                DatabaseStatus = h.Status,
+                h.ExpiresAt,
+                h.CreatedAt
+            }
+        ).ToListAsync(cancellationToken);
+
+        return holds.Select(h =>
+        {
+            var displayStatus = (h.DatabaseStatus == "HELD" && h.ExpiresAt <= now)
+                ? "EXPIRED"
+                : h.DatabaseStatus;
+
+            return new AdminHoldItemResponse(
+                h.Id,
+                h.ClassId,
+                h.ClassName,
+                h.StudentId,
+                displayStatus,
+                h.ExpiresAt,
+                h.CreatedAt
+            );
+        }).ToList();
+    }
+
+    public async Task<AdminHoldItemResponse> TransferHoldAsync(
+        Guid holdId,
+        TransferHoldRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var targetClassId = request.TargetClassId;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.ReadCommitted,
+            cancellationToken
+        );
+
+        var hold = await _db.Holds
+            .SingleOrDefaultAsync(h => h.Id == holdId, cancellationToken);
+
+        if (hold == null)
+        {
+            throw new ApiException(404, "Application hold record not found.");
+        }
+
+        if (hold.ClassId == targetClassId)
+        {
+            throw new ApiException(400, "Student is already in this class.");
+        }
+
+        var sourceClassId = hold.ClassId;
+
+        // Deterministic lock ordering to guarantee zero deadlocks
+        var firstLockId = sourceClassId.CompareTo(targetClassId) < 0 ? sourceClassId : targetClassId;
+        var secondLockId = sourceClassId.CompareTo(targetClassId) < 0 ? targetClassId : sourceClassId;
+
+        var firstLocked = await LockClassRowAsync(firstLockId, cancellationToken);
+        var secondLocked = await LockClassRowAsync(secondLockId, cancellationToken);
+
+        if (!firstLocked || !secondLocked)
+        {
+            throw new ApiException(404, "One or both classes not found.");
+        }
+
+        var targetClass = await _db.Classes
+            .SingleOrDefaultAsync(c => c.Id == targetClassId, cancellationToken);
+
+        if (targetClass == null)
+        {
+            throw new ApiException(404, "Target class not found.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Validate target class capacity under exclusive row lock
+        var targetHeldSeats = await _db.Holds.CountAsync(h =>
+            h.ClassId == targetClassId &&
+            h.Status == "HELD" &&
+            h.ExpiresAt > now,
+            cancellationToken
+        );
+
+        var targetConfirmedSeats = await _db.Holds.CountAsync(h =>
+            h.ClassId == targetClassId &&
+            h.Status == "CONFIRMED",
+            cancellationToken
+        );
+
+        var targetAvailable = targetClass.TotalSeats - targetHeldSeats - targetConfirmedSeats;
+        if (targetAvailable <= 0)
+        {
+            throw new ApiException(409, $"Target class '{targetClass.Name}' has no available seats.");
+        }
+
+        // Check if student already has active hold or confirmed admission in target class
+        var studentActiveInTarget = await _db.Holds.AnyAsync(h =>
+            h.ClassId == targetClassId &&
+            h.StudentId == hold.StudentId &&
+            ((h.Status == "HELD" && h.ExpiresAt > now) || h.Status == "CONFIRMED"),
+            cancellationToken
+        );
+
+        if (studentActiveInTarget)
+        {
+            throw new ApiException(409, "Student already has an active hold or confirmed seat in the target class.");
+        }
+
+        // Perform transfer
+        hold.ClassId = targetClassId;
+
+        // If transferring an active hold, refresh hold duration
+        if (hold.Status == "HELD" && hold.ExpiresAt > now)
+        {
+            hold.ExpiresAt = now.AddSeconds(_holdDurationSeconds);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
+        return new AdminHoldItemResponse(
+            hold.Id,
+            targetClass.Id,
+            targetClass.Name,
+            hold.StudentId,
+            hold.Status,
+            hold.ExpiresAt,
+            hold.CreatedAt
+        );
+    }
+
+    public async Task AdminCancelHoldAsync(
+        Guid holdId,
+        CancellationToken cancellationToken = default)
+    {
+        var hold = await _db.Holds
+            .SingleOrDefaultAsync(h => h.Id == holdId, cancellationToken);
+
+        if (hold == null)
+        {
+            throw new ApiException(404, "Hold record not found.");
+        }
+
+        hold.Status = "CANCELLED";
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    // =====================================================
     // POSTGRESQL ROW LOCKING
     // =====================================================
 

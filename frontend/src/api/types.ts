@@ -49,3 +49,17 @@ export interface MyHoldResponse {
   status: 'HELD' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | string;
   expiresAt: string;
 }
+
+export interface AdminHoldItem {
+  holdId: string;
+  classId: string;
+  className: string;
+  studentId: string;
+  status: 'HELD' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface TransferHoldRequest {
+  targetClassId: string;
+}

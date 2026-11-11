@@ -64,6 +64,7 @@ if (app.Environment.IsDevelopment())
 // Register API endpoints
 app.MapClassEndpoints();
 app.MapHoldEndpoints();
+app.MapAdminEndpoints();
 
 app.Run();
 

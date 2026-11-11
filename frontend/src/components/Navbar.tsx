@@ -35,11 +35,20 @@ export const Navbar: React.FC = () => {
         </NavLink>
         <NavLink
           to="/admin"
+          end
           className={({ isActive }) =>
             `nav-link ${isActive ? 'nav-link-active' : ''}`
           }
         >
-          Admin / Create Class
+          Admin: Cohorts
+        </NavLink>
+        <NavLink
+          to="/admin/students"
+          className={({ isActive }) =>
+            `nav-link ${isActive ? 'nav-link-active' : ''}`
+          }
+        >
+          Admin: Students & Transfers
         </NavLink>
       </nav>
     </div>

@@ -64,3 +64,19 @@ public sealed record MyHoldResponse(
     string Status,
     DateTimeOffset ExpiresAt
 );
+
+// Response when admin views all student application holds
+public sealed record AdminHoldItemResponse(
+    Guid HoldId,
+    Guid ClassId,
+    string ClassName,
+    string StudentId,
+    string Status,
+    DateTimeOffset ExpiresAt,
+    DateTimeOffset CreatedAt
+);
+
+// Request for admin transferring a student hold to a new class
+public sealed record TransferHoldRequest(
+    Guid TargetClassId
+);

@@ -7,6 +7,7 @@ import { StudentIdBar } from './components/StudentIdBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ClassListPage } from './pages/ClassListPage';
 import { CreateClassPage } from './pages/CreateClassPage';
+import { AdminStudentsPage } from './pages/AdminStudentsPage';
 import { HoldPage } from './pages/HoldPage';
 import { MyApplicationsPage } from './pages/MyApplicationsPage';
 
@@ -43,6 +44,7 @@ export const App: React.FC = () => {
                 element={<ClassListPage savedStudentId={studentHook.savedId} />}
               />
               <Route path="/admin" element={<CreateClassPage />} />
+              <Route path="/admin/students" element={<AdminStudentsPage />} />
               <Route
                 path="/holds/:holdId"
                 element={<HoldPage savedStudentId={studentHook.savedId} />}
