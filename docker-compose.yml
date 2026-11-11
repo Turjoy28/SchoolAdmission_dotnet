@@ -1,0 +1,81 @@
+services:
+  db:
+    image: postgres:16
+    container_name: school_admission_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: school_admission
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local_dev_only_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d school_admission
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: school_admission_backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=school_admission;Username=postgres;Password=local_dev_only_password
+      - HOLD_DURATION_SECONDS=600
+      - RUN_MIGRATIONS=true
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+    container_name: school_admission_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  backend-tests:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: test
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=school_admission;Username=postgres;Password=local_dev_only_password
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # backend2: # Bonus: multi-instance backend
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #     target: runtime
+  #   container_name: school_admission_backend2
+  #   ports:
+  #     - "8081:8080"
+  #   environment:
+  #     - ASPNETCORE_ENVIRONMENT=Development
+  #     - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=school_admission;Username=postgres;Password=local_dev_only_password
+  #     - RUN_MIGRATIONS=false
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+volumes:
+  pgdata:
