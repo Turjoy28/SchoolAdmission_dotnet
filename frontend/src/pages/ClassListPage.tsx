@@ -45,6 +45,27 @@ export const ClassListPage: React.FC<ClassListPageProps> = ({ savedStudentId }) 
     },
   });
 
+  // Delete mutation (DELETE /classes/{classId})
+  const deleteMutation = useMutation<void, ApiError, string>({
+    mutationFn: (classId) =>
+      api<void>(`/classes/${classId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+    },
+    onError: (err) => {
+      setActionError(err.message);
+    },
+  });
+
+  const handleDelete = (classId: string, className: string) => {
+    if (window.confirm(`Are you sure you want to delete "${className}"? This will also remove any active holds for this class.`)) {
+      setActionError(null);
+      deleteMutation.mutate(classId);
+    }
+  };
+
   const handleApply = (classId: string) => {
     setActionError(null);
     if (!savedStudentId || savedStudentId.length !== 17) {
@@ -197,29 +218,41 @@ export const ClassListPage: React.FC<ClassListPageProps> = ({ savedStudentId }) 
                 </div>
               </div>
 
-              {/* Card Footer / Apply Button */}
+              {/* Card Footer / Apply & Delete Buttons */}
               <div className="class-card-footer">
                 <span className="font-mono text-muted text-xs">ID: {cls.id.slice(0, 8)}...</span>
-                <button
-                  type="button"
-                  className={`btn ${isFull ? 'btn-disabled' : 'btn-primary'}`}
-                  disabled={isFull || applyMutation.isPending}
-                  onClick={() => handleApply(cls.id)}
-                >
-                  {applyMutation.isPending && applyMutation.variables?.classId === cls.id ? (
-                    <>
-                      <span className="material-symbols-outlined spin-icon text-sm">sync</span>
-                      Securing Hold...
-                    </>
-                  ) : isFull ? (
-                    'No Seats Available'
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-sm">how_to_reg</span>
-                      Apply for Seat
-                    </>
-                  )}
-                </button>
+                <div className="class-card-actions">
+                  <button
+                    type="button"
+                    className="btn btn-danger-outline"
+                    title="Delete this class"
+                    disabled={deleteMutation.isPending && deleteMutation.variables === cls.id}
+                    onClick={() => handleDelete(cls.id, cls.name)}
+                  >
+                    <span className="material-symbols-outlined text-sm">delete</span>
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${isFull ? 'btn-disabled' : 'btn-primary'}`}
+                    disabled={isFull || applyMutation.isPending}
+                    onClick={() => handleApply(cls.id)}
+                  >
+                    {applyMutation.isPending && applyMutation.variables?.classId === cls.id ? (
+                      <>
+                        <span className="material-symbols-outlined spin-icon text-sm">sync</span>
+                        Securing Hold...
+                      </>
+                    ) : isFull ? (
+                      'No Seats Available'
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-sm">how_to_reg</span>
+                        Apply for Seat
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           );

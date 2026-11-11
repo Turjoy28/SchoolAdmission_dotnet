@@ -155,6 +155,32 @@ public class SeatService
         );
     }
 
+    public async Task DeleteClassAsync(
+        Guid classId,
+        CancellationToken cancellationToken = default)
+    {
+        var schoolClass = await _db.Classes
+            .SingleOrDefaultAsync(c => c.Id == classId, cancellationToken);
+
+        if (schoolClass is null)
+        {
+            throw new ApiException(404, "Class not found.");
+        }
+
+        // Remove associated holds to satisfy foreign key constraints
+        var holds = await _db.Holds
+            .Where(h => h.ClassId == classId)
+            .ToListAsync(cancellationToken);
+
+        if (holds.Count > 0)
+        {
+            _db.Holds.RemoveRange(holds);
+        }
+
+        _db.Classes.Remove(schoolClass);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     // =====================================================
     // SHARED VALIDATION
     // =====================================================

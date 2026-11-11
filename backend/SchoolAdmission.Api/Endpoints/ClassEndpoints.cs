@@ -14,6 +14,10 @@ public static class ClassEndpoints
             "/classes/{classId:guid}",
             GetClassByIdAsync
         );
+        endpoints.MapDelete(
+            "/classes/{classId:guid}",
+            DeleteClassAsync
+        );
 
         return endpoints;
     }
@@ -49,5 +53,15 @@ public static class ClassEndpoints
     {
         var response = await seatService.GetClassAsync(classId, cancellationToken);
         return Results.Ok(response);
+    }
+
+    // DELETE /classes/{classId}
+    private static async Task<IResult> DeleteClassAsync(
+        Guid classId,
+        SeatService seatService,
+        CancellationToken cancellationToken)
+    {
+        await seatService.DeleteClassAsync(classId, cancellationToken);
+        return Results.NoContent();
     }
 }
